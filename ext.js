@@ -178,6 +178,13 @@ function iconHue(text) {
   return h;
 }
 
+function backupIconFor(extId) {
+  const head = String(extId || '').slice(0, 8).toLowerCase();
+  if (!head) return '';
+  const hit = extState.backups.find((b) => b.iconUrl && b.folder.toLowerCase().endsWith(`-${head}`));
+  return hit ? hit.iconUrl : '';
+}
+
 function makeIcon(item, small) {
   const wrap = document.createElement('span');
   wrap.className = small ? 'ext-icon sm' : 'ext-icon';
@@ -187,7 +194,7 @@ function makeIcon(item, small) {
   letter.style.background = `hsl(${iconHue(item.id)} 34% 34%)`;
   wrap.appendChild(letter);
 
-  const url = pickIconUrl(item.icons);
+  const url = item.customUrl || pickIconUrl(item.icons);
   if (url) {
     const img = document.createElement('img');
     img.alt = '';
@@ -236,7 +243,7 @@ function renderExtTable() {
 
     const tdIcon = document.createElement('td');
     tdIcon.className = 'col-icon';
-    tdIcon.appendChild(makeIcon(item));
+    tdIcon.appendChild(makeIcon({ ...item, customUrl: backupIconFor(item.id) }));
 
     const tdName = document.createElement('td');
     tdName.className = 'cell-name';
@@ -272,6 +279,7 @@ function renderExtTable() {
       tdState.appendChild(off);
     }
 
+    tr.dataset.extId = item.id;
     tr.append(tdCheck, tdIcon, tdName, tdVer, tdType, tdState);
     frag.appendChild(tr);
   }
@@ -441,10 +449,44 @@ async function readManifestMeta(dir) {
     const data = JSON.parse(await file.text());
     let name = typeof data.name === 'string' ? data.name : '';
     if (name.startsWith('__MSG_') && name.endsWith('__')) name = name.slice(6, -2);
-    return { name, version: data.version || '', mtime: file.lastModified };
+    return { name, version: data.version || '', mtime: file.lastModified, manifest: data };
   } catch {
     return null;
   }
+}
+
+/* 跨扩展图标读不了，但备份里有源码：把 manifest 指向的图标读成 blob 直接用 */
+const iconUrlCache = new Map();
+
+function dropIconCache(path) {
+  const url = iconUrlCache.get(path);
+  if (url) {
+    URL.revokeObjectURL(url);
+    iconUrlCache.delete(path);
+  }
+}
+
+async function readIconFromDir(dir, manifest, path) {
+  if (iconUrlCache.has(path)) return iconUrlCache.get(path);
+  const icons = manifest && manifest.icons;
+  if (!icons || typeof icons !== 'object') return '';
+
+  const sizes = Object.keys(icons).map(Number).filter((n) => Number.isFinite(n)).sort((a, b) => b - a);
+  for (const size of sizes) {
+    const rel = icons[String(size)];
+    if (typeof rel !== 'string' || !rel) continue;
+    try {
+      const segs = rel.split('/').filter(Boolean);
+      let d = dir;
+      for (let i = 0; i < segs.length - 1; i++) d = await d.getDirectoryHandle(segs[i]);
+      const fh = await d.getFileHandle(segs[segs.length - 1]);
+      const file = await fh.getFile();
+      const url = URL.createObjectURL(file);
+      iconUrlCache.set(path, url);
+      return url;
+    } catch { /* 换下一个尺寸 */ }
+  }
+  return '';
 }
 
 async function listBackupFolders() {
@@ -456,9 +498,11 @@ async function listBackupFolders() {
       if (handle.kind !== 'directory') continue;
       if (folder.startsWith('.')) continue;
       const meta = await readManifestMeta(handle);
+      const path = `${DIR_EXT}/${folder}`;
       out.push({
-        path: `${DIR_EXT}/${folder}`,
+        path,
         folder,
+        iconUrl: await readIconFromDir(handle, meta && meta.manifest, path),
         name: (meta && meta.name) || folder,
         version: (meta && meta.version) || '',
         mtime: meta ? meta.mtime : 0,
@@ -785,7 +829,9 @@ function renderExtList() {
     frag.appendChild(emptyNote('还没有扩展备份。在 Finder 里双击插件目录下的「备份扩展源码.command」。'));
   } else {
     list.forEach((item) => {
-      const icon = findExtForFolder(item.folder) || { id: item.folder, name: item.name, icons: [] };
+      const icon = item.iconUrl
+        ? { id: item.folder, name: item.name, icons: [], customUrl: item.iconUrl }
+        : (findExtForFolder(item.folder) || { id: item.folder, name: item.name, icons: [] });
       frag.appendChild(backupRow({
         title: item.name,
         meta: backupMetaLine(item) || '脚本导入',
@@ -844,6 +890,7 @@ function updateSummary() {
 }
 
 /* 先取数据、再一次性替换 DOM，避免刷新时列表先清空再填回造成的抖动 */
+let lastIconSig = '';
 let backupLoading = null;
 let backupDirty = false;
 
@@ -885,6 +932,12 @@ function loadBackups() {
     renderFullList();
     renderTrash();
     renderLocation();
+
+    const sig = extState.backups.filter((b) => b.iconUrl).map((b) => b.folder).sort().join('|');
+    if (sig !== lastIconSig) {
+      lastIconSig = sig;
+      renderExtTable();
+    }
 
     ensureSizes();
   })().finally(() => {
@@ -1068,6 +1121,7 @@ async function deleteBackup(item) {
   if (!ok) return;
   try {
     await moveToTrash(item.path, item.name);
+    dropIconCache(item.path);
     setBackupStatus(`已移入回收站：${item.name}`, 'ok');
   } catch (e) {
     if (e.name === 'NotFoundError') setBackupStatus(`文件夹已不存在，刷新即可：${item.name}`, '');
@@ -1099,6 +1153,7 @@ async function clearExtensionBackups() {
   for (const item of extState.backups) {
     try {
       await moveToTrash(item.path, item.name);
+      dropIconCache(item.path);
     } catch (e) {
       if (e.name !== 'NotFoundError') failed += 1;
     }

@@ -630,7 +630,8 @@ html { scrollbar-gutter: stable; }
 /* 扩展图标：加载成功用图，失败回落到首字母色块 */
 .ext-icon {
   position: relative;
-  display: block;
+  display: inline-block;
+  vertical-align: middle;
   width: 30px;
   height: 30px;
   border-radius: 8px;
@@ -741,21 +742,19 @@ html { scrollbar-gutter: stable; }
 .section-head:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 .chev {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
   flex: none;
-  font-size: 17px;
-  line-height: 1;
-  color: var(--muted);
+  background-color: var(--muted);
+  -webkit-mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3.5 10.5 8 6 12.5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
+  mask: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M6 3.5 10.5 8 6 12.5' fill='none' stroke='%23fff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 16px 16px no-repeat;
   transition: transform .18s ease;
 }
-.chev::before { content: "\203A"; }
+.section-head:hover .chev { background-color: var(--text-2); }
 .section-head[aria-expanded="true"] .chev { transform: rotate(90deg); }
 
 .section-title { font-size: 13.5px; font-weight: 650; }
+.section-count:empty { display: none; }
 .section-count {
   padding: 2px 9px;
   border: 1px solid var(--border);
@@ -786,7 +785,7 @@ html { scrollbar-gutter: stable; }
 }
 .backup-item {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   padding: 12px;
   border: 1px solid var(--border);
@@ -806,7 +805,8 @@ html { scrollbar-gutter: stable; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.backup-item .btn { flex: none; }
+.backup-item .btn { flex: none; align-self: center; }
+.backup-item .ext-icon { margin-top: 1px; }
 .row-actions { display: flex; gap: 6px; flex: none; }
 
 .backup-list .group-title {
