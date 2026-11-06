@@ -1,0 +1,320 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>浏览器备份</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="wrap">
+
+  <header class="head">
+    <div class="mark" aria-hidden="true">
+      <span class="bar b1"></span><span class="bar b2"></span><span class="bar b3"></span>
+    </div>
+    <div class="head-text">
+      <h1>浏览器备份</h1>
+      <p>标签与收藏、扩展源码，备份统一进插件目录</p>
+    </div>
+    <div class="head-right">
+      <span class="pill" id="backupAge">尚未备份</span>
+      <span class="pill muted" id="browserInfo">—</span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabBar">
+    <button class="tab active" data-view="tabs" type="button">标签与收藏</button>
+    <button class="tab" data-view="ext" type="button">扩展</button>
+    <button class="tab" data-view="backup" type="button">备份管理</button>
+  </nav>
+
+  <main>
+
+  <!-- ==================== 视图一：标签与收藏 ==================== -->
+  <section id="view-tabs">
+
+    <section class="card">
+      <div class="card-head">
+        <h2>当前快照</h2>
+        <button class="btn ghost sm" id="btnRefresh" type="button">重新统计</button>
+      </div>
+      <div class="stats">
+        <div class="stat"><b id="statWindows">–</b><span>窗口</span></div>
+        <div class="stat"><b id="statGroups">–</b><span>标签组</span></div>
+        <div class="stat"><b id="statTabs">–</b><span>标签页</span></div>
+        <div class="stat"><b id="statMarks">–</b><span>收藏项</span></div>
+      </div>
+      <div class="group-preview" id="groupPreview"></div>
+    </section>
+
+    <div class="grid">
+
+      <section class="card">
+        <div class="card-head">
+          <h2>备份与导出</h2>
+          <span class="hint">本地生成，不联网</span>
+        </div>
+        <button class="btn primary wide" id="btnSaveToFolder" type="button">备份到插件目录（.json）</button>
+        <div class="actions">
+          <button class="btn" id="btnExportJson" type="button">导出 .json</button>
+          <button class="btn" id="btnExportHtml" type="button">收藏夹 .html</button>
+          <button class="btn" id="btnExportMd" type="button">可读清单 .md</button>
+        </div>
+        <p class="note" id="destHint">备份位置：未授权（去「备份管理」授权插件目录）</p>
+        <p class="note">「备份到插件目录」写进插件自己的 <code>backups/</code>，跟着插件走；「导出」才是下载到默认文件夹。</p>
+        <p class="note">备份含组名、颜色、折叠、顺序与收藏夹全层级。</p>
+      </section>
+
+      <section class="card">
+        <div class="card-head">
+          <h2>导入</h2>
+          <span class="hint">选择 .json 备份</span>
+        </div>
+        <label class="drop" id="drop">
+          <input type="file" id="fileInput" accept=".json,application/json" hidden>
+          <strong>点击选择备份文件</strong>
+          <span>或把 .json 拖到这里</span>
+          <em id="fileName">尚未选择文件</em>
+        </label>
+        <p class="note">载入后先在下方生成预览，确认无误再还原；不会自动改动当前窗口。</p>
+      </section>
+
+    </div>
+
+    <section class="card restore" id="restoreCard" hidden>
+      <div class="card-head">
+        <h2>恢复预览</h2>
+        <div class="head-actions">
+          <span class="hint" id="previewStamp"></span>
+          <button class="btn ghost sm" id="btnClearFile" type="button">移除文件</button>
+        </div>
+      </div>
+
+      <div class="restore-body">
+        <div class="restore-info">
+          <div class="meta-line" id="previewMeta"></div>
+          <div class="group-preview" id="previewGroups"></div>
+          <div class="meta-line plain" id="previewDetail"></div>
+          <div class="meta-line dim" id="previewBookmarks"></div>
+        </div>
+
+        <div class="restore-opts">
+          <label class="chk"><input type="checkbox" id="optTabs" checked><span>还原标签组</span></label>
+          <label class="chk"><input type="checkbox" id="optMarks" checked><span>还原收藏夹</span></label>
+          <label class="chk"><input type="checkbox" id="optNewWindow" checked><span>在新窗口中还原（不打扰当前窗口）</span></label>
+          <div class="radio-row">
+            <span class="radio-label">收藏夹</span>
+            <label class="chk"><input type="radio" name="markMode" value="merge" checked><span>合并到原位置</span></label>
+            <label class="chk"><input type="radio" name="markMode" value="folder"><span>装进新文件夹</span></label>
+          </div>
+          <button class="btn primary wide" id="btnImport" type="button" disabled>开始还原</button>
+          <p class="adv-hint">这里的勾选会被记住，下次打开保持上次的选择。</p>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>进阶设置</h2>
+        <span class="hint">改动即时生效</span>
+      </div>
+      <div class="adv-body plain">
+
+          <div class="adv-group">
+            <h3>导出范围</h3>
+            <label class="chk"><input type="checkbox" id="setIncludeUngrouped" checked><span>包含未分组的零散标签页</span></label>
+            <label class="chk"><input type="checkbox" id="setExcludeInternal" checked><span>排除 edge:// 等内部页面</span></label>
+            <p class="adv-hint">内部页面扩展打不开，排除后更干净。</p>
+          </div>
+
+          <div class="adv-group">
+            <h3>还原行为</h3>
+            <label class="chk"><input type="checkbox" id="setRestoreVisuals" checked><span>还原组颜色与折叠状态</span></label>
+            <label class="chk"><input type="checkbox" id="setDiscardAfter"><span>还原后让标签休眠（省内存）</span></label>
+            <p class="adv-hint">灰点标签点击才加载，适合一次恢复几十个。</p>
+          </div>
+
+          <div class="adv-group">
+            <h3>备份提醒</h3>
+            <div class="field-inline">
+              <span>超过</span>
+              <input type="number" id="setRemindDays" min="1" max="90" value="7" class="num" aria-label="未备份天数阈值">
+              <span>天未备份时高亮</span>
+            </div>
+            <p class="adv-hint">只影响右上角状态色，不弹窗。</p>
+          </div>
+
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>执行记录</h2>
+        <button class="btn ghost sm" id="btnClearLog" type="button">清空</button>
+      </div>
+      <div class="log" id="log"><div class="log-line muted">等待操作…</div></div>
+    </section>
+
+  </section>
+
+  <!-- ==================== 视图二：扩展（只读盘点） ==================== -->
+  <section id="view-ext" hidden>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>已安装扩展</h2>
+        <div class="head-actions">
+          <span class="hint" id="extSummary">读取中…</span>
+          <button class="btn ghost sm" id="btnExtRefresh" type="button">刷新</button>
+        </div>
+      </div>
+
+      <div class="ext-toolbar">
+        <label class="chk"><input type="checkbox" id="extSelectAll"><span>全选</span></label>
+        <span class="hint" id="extPicked">已选 0 个</span>
+        <div class="ext-toolbar-actions">
+          <button class="btn sm" id="btnExportInv" type="button">导出清单</button>
+        </div>
+      </div>
+
+      <div class="ext-table-wrap">
+        <table class="ext-table">
+          <thead>
+            <tr>
+              <th class="col-check"></th>
+              <th class="col-icon"></th>
+              <th class="cell-name">名称</th>
+              <th class="col-ver">版本</th>
+              <th class="col-type">类型</th>
+              <th class="col-state">状态</th>
+            </tr>
+          </thead>
+          <tbody id="extTbody"></tbody>
+        </table>
+      </div>
+      <p class="note" id="extNote">本页只做盘点。备份源码、查看和删除备份都在「备份管理」页签。</p>
+    </section>
+
+  </section>
+
+  <!-- ==================== 视图三：备份管理 ==================== -->
+  <section id="view-backup" hidden>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>备份位置</h2>
+        <div class="head-actions">
+          <span class="pill muted" id="locationPill">未授权</span>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>① 备份扩展源码<span>双击脚本完成</span></h3>
+        <p class="note" style="margin-top:0">在 Finder 里双击插件目录下的 <code>备份扩展源码.command</code>，它会把 Edge 的扩展源码复制进 <code>backups/扩展源码/</code>。跑完回本页点「刷新」。</p>
+        <p class="note">为什么不能直接选目录：Edge 的扩展目录位于浏览器配置目录内，浏览器按设计禁止扩展授权这类路径，会提示「此文件夹包含系统文件」。这一步只能在浏览器外完成。</p>
+      </div>
+
+      <div class="step">
+        <h3>② 授权插件目录<span>列备份、删备份都要它</span></h3>
+        <div class="path-row">
+          <button class="btn" id="btnPickDst" type="button">授权插件目录</button>
+          <span class="path" id="dstPath">未授权</span>
+          <button class="btn ghost sm" id="btnRetryDst" type="button" hidden>恢复授权</button>
+        </div>
+        <p class="note" id="pathHint" hidden></p>
+      </div>
+
+      <div class="tree-lines">
+        <div><b>manifest.json</b><span>插件本体，备份不会碰这些文件</span></div>
+        <div><b>backups/</b><span>所有备份都收在这一个目录里</span></div>
+        <div><b>backups/扩展源码/</b><span>每个扩展一个文件夹，内含该版本全部文件</span></div>
+        <div><b>backups/完整备份/</b><span>edge-backup-日期时间.json，含标签组与收藏夹</span></div>
+        <div><b>backups/位置.txt</b><span>脚本写入，记录插件目录的绝对路径</span></div>
+      </div>
+      <p class="note">备份写在插件自己的文件夹里，<strong>拷走整个插件目录就等于带走全部备份</strong>。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>已有备份</h2>
+        <div class="head-actions">
+          <span class="hint" id="backupSummary"></span>
+          <button class="btn ghost sm" id="btnReloadBackups" type="button">刷新</button>
+        </div>
+      </div>
+      <p class="status-line" id="backupStatus" hidden></p>
+      <p class="note" id="backupWhere" style="margin-top:0"></p>
+
+      <div class="section">
+        <button class="section-head" id="extBackupToggle" type="button" aria-expanded="false" aria-controls="extBackupBody">
+          <i class="chev" aria-hidden="true"></i>
+          <span class="section-title">扩展源码</span>
+          <span class="section-count" id="extBackupCount"></span>
+          <span class="section-tip">每行可单独删除</span>
+        </button>
+        <div class="section-body" id="extBackupBody" hidden>
+          <div class="backup-list scroll" id="extBackupList"></div>
+          <div class="backup-foot">
+            <button class="btn ghost sm danger" id="btnClearExtBackups" type="button" disabled>清空扩展备份</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="section">
+        <button class="section-head" id="fullBackupToggle" type="button" aria-expanded="false" aria-controls="fullBackupBody">
+          <i class="chev" aria-hidden="true"></i>
+          <span class="section-title">完整备份</span>
+          <span class="section-count" id="fullBackupCount"></span>
+          <span class="section-tip">标签组 + 收藏夹</span>
+        </button>
+        <div class="section-body" id="fullBackupBody" hidden>
+          <div class="backup-list scroll" id="fullBackupList"></div>
+          <div class="backup-foot">
+            <button class="btn ghost sm danger" id="btnClearFullBackups" type="button" disabled>清空完整备份</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="note">删除会移入下方「回收站」，不会立刻消失；需要腾空间时再彻底删除或清空回收站。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>回收站</h2>
+        <div class="head-actions">
+          <span class="hint" id="trashCount"></span>
+          <button class="btn ghost sm" id="btnEmptyTrash" type="button" disabled>清空回收站</button>
+        </div>
+      </div>
+      <div class="backup-list" id="trashList"></div>
+      <p class="note">删除的备份先移到这里，可以恢复；只有「彻底删除」和「清空回收站」会真正从磁盘移除。</p>
+    </section>
+
+    <section class="card">
+      <div class="card-head">
+        <h2>说明</h2>
+      </div>
+      <ul class="specs">
+        <li>商店扩展会随账号同步自动装回，备份是给「被下架、开发者弃坑」留后路。</li>
+        <li>本地解压扩展不在任何同步里，源码只在你那个文件夹，请自行保留；它们也不在 Extensions 目录里，脚本不会复制它们。</li>
+        <li>备份出来的商店扩展可用「加载解压缩的扩展」装回，ID 不变，数据仍能对上。</li>
+        <li>扩展配置（API key、规则、脚本）不会随源码走，请用各自扩展的导出功能。</li>
+        <li>所有备份都在插件目录的 <code>backups/</code> 里，拷走整个插件文件夹就是一次完整迁移。</li>
+        <li>勾选与目录授权都会被记住；重开浏览器后若权限失效，点「恢复授权」一次即可，不用重新选。</li>
+      </ul>
+    </section>
+
+  </section>
+
+  </main>
+
+  <footer class="foot">
+    数据仅在本机处理 · 备份文件请自行妥善保存
+  </footer>
+
+</div>
+<script src="app.js"></script>
+<script src="ext.js"></script>
+</body>
+</html>
